@@ -1,0 +1,38 @@
+name: Daily QT Crawler (00:30 KST)
+
+on:
+  schedule:
+    # 한국 시간(KST, UTC+9) 매일 00:30은 UTC 기준 전날 15:30입니다.
+    - cron: "30 15 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "수집할 날짜 (YYYY-MM-DD, 비워두면 오늘 KST 날짜 자동 계산)"
+        required: false
+        default: ""
+
+jobs:
+  crawl-and-save-to-notion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Duranno QT Crawler & Save to Notion DB
+        env:
+          TZ: "Asia/Seoul"
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DAILY_WORD_DB_ID: ${{ secrets.NOTION_DAILY_WORD_DB_ID }}
+          TARGET_DATE: ${{ github.event.inputs.target_date }}
+        run: npm run crawl
