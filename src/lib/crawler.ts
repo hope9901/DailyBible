@@ -1,6 +1,8 @@
 import * as cheerio from "cheerio";
 import iconv from "iconv-lite";
 
+export type BibleTranslation = "krv" | "klb"; // krv: 개역개정, klb: 우리말성경
+
 export interface BibleVerse {
   verse: number;
   text: string;
@@ -15,23 +17,21 @@ export interface DailyWordData {
   date: string; // YYYY-MM-DD
   title: string; // 말씀 제목 (예: 사랑으로 결단하는 용서의 복음)
   scripture: string; // 본문 장절 (예: 빌레몬서 1 : 1~14)
-  hymn: string; // 오늘의 찬송
-  sections: BibleSection[]; // 소제목별 성경 본문 절 목록
+  sections: BibleSection[]; // 개역개정(기본) 소제목별 성경 본문 절 목록
+  sectionsKlb: BibleSection[]; // 우리말성경 소제목별 성경 본문 절 목록
   meditationGuide: string[]; // 묵상 도우미 해설 목록
   sourceUrl: string;
   crawledAt: string;
 }
 
 /**
- * 기본 내장 샘플 데이터 (두란노 생명의 삶 실제 본문 기준)
- * 크롤링 전이거나 오프라인 테스트 시에도 즉시 화면에서 말씀을 볼 수 있도록 제공합니다.
+ * 기본 내장 샘플 데이터 (두란노 생명의 삶 실제 본문 기준 - 개역개정 & 우리말성경 모두 포함)
  */
 export const FALLBACK_DAILY_WORDS: Record<string, DailyWordData> = {
   "2026-11-01": {
     date: "2026-11-01",
     title: "사랑으로 결단하는 용서의 복음",
     scripture: "빌레몬서 1 : 1~14",
-    hymn: "새찬송가 218장 (네 맘과 정성을 다하여서)\n네 맘과 정성을 다하여서 주 너의 하나님을 사랑하라 네 몸을 아끼고 사랑하듯 형제와 이웃을 사랑하라 주께서 우리게 명하시니 그 명령 따라서 살아가리",
     sections: [
       {
         subheading: "빌레몬의 사랑과 믿음을 칭찬함 1:1~7",
@@ -100,6 +100,74 @@ export const FALLBACK_DAILY_WORDS: Record<string, DailyWordData> = {
         ],
       },
     ],
+    sectionsKlb: [
+      {
+        subheading: "빌레몬의 사랑과 믿음을 칭찬함 1:1~7",
+        verses: [
+          {
+            verse: 1,
+            text: "그리스도 예수를 위해 갇힌 사람이 된 바울과 형제 디모데는 우리의 사랑하는 사람이며 동역자인 빌레몬과",
+          },
+          {
+            verse: 2,
+            text: "자매 압비아와 우리와 함께 군사가 된 아킵보와 그대의 가정 교회에 편지를 씁니다.",
+          },
+          {
+            verse: 3,
+            text: "하나님 우리 아버지와 주 예수 그리스도의 은혜와 평강이 여러분에게 있기를 빕니다.",
+          },
+          {
+            verse: 4,
+            text: "내가 기도할 때 그대를 기억하고 내 하나님께 항상 감사드리는 것은",
+          },
+          {
+            verse: 5,
+            text: "주 예수와 모든 성도에 대한 그대의 사랑과 믿음에 대해 들었기 때문입니다.",
+          },
+          {
+            verse: 6,
+            text: "그대가 믿음 안에서 교제하므로 우리 가운데 있는 모든 선한 것을 깨달아 그리스도께 이르게 되기를 바랍니다.",
+          },
+          {
+            verse: 7,
+            text: "형제여, 나는 그대의 사랑으로 큰 기쁨과 위로를 얻었습니다. 이는 성도들의 마음이 그대로 인해 새 힘을 얻었기 때문입니다.",
+          },
+        ],
+      },
+      {
+        subheading: "오네시모를 위한 부탁 1:8~14",
+        verses: [
+          {
+            verse: 8,
+            text: "그러므로 나는 그리스도 안에서 그대가 마땅히 행할 것을 매우 담대하게 명령할 수도 있지만",
+          },
+          {
+            verse: 9,
+            text: "오히려 사랑으로 인해 간곡하게 부탁합니다. 이렇게 나이가 많고 또 지금은 예수 그리스도를 위해 갇힌 사람이 된 나 바울은",
+          },
+          {
+            verse: 10,
+            text: "갇힌 중에서 낳은 내 아들 오네시모를 위해 그대에게 간곡히 부탁합니다.",
+          },
+          {
+            verse: 11,
+            text: "전에는 그가 그대에게 무익한 사람이었으나 이제는 그대와 내게 유익한 사람이 되었습니다.",
+          },
+          {
+            verse: 12,
+            text: "내가 그를 그대에게 돌려보내는데 그는 내 심장입니다.",
+          },
+          {
+            verse: 13,
+            text: "나는 그를 내 곁에 머물게 해서 내가 복음을 위해 갇혀 있는 동안 그대 대신 나를 돕게 하고 싶었습니다.",
+          },
+          {
+            verse: 14,
+            text: "그러나 그대의 동의 없이는 내가 아무것도 하고 싶지 않습니다. 이는 그대의 선한 일이 억지에 의해서가 아니라 자발적으로 하는 일이 되게 하려는 것입니다.",
+          },
+        ],
+      },
+    ],
     meditationGuide: [
       "빌레몬, 압비아, 아킵보(1~2절): 골로새 성도들은 빌레몬의 집에서 가정교회로 모였다. 압비아는 빌레몬의 아내로, 아킵보는 동역자로 알려져 있다.",
       "오네시모(10절): '유익한' 또는 '쓸모 있는'이란 뜻의 이름을 지닌, 빌레몬의 종이다.",
@@ -109,51 +177,78 @@ export const FALLBACK_DAILY_WORDS: Record<string, DailyWordData> = {
   },
 };
 
+async function fetchDurannoVersionHtml(
+  date: string,
+  div: "k" | "w"
+): Promise<string> {
+  const url = `https://www.duranno.com/qt/view/bible.asp?qtDate=${encodeURIComponent(date)}&d=${div}`;
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Cookie: `biblediv=${div}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from Duranno (${div})`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const contentType = response.headers.get("content-type") || "";
+  const asciiPreview = buffer.slice(0, 1024).toString("ascii").toLowerCase();
+  const isEucKr =
+    contentType.toLowerCase().includes("euc-kr") ||
+    asciiPreview.includes("euc-kr") ||
+    asciiPreview.includes("ks_c_5601");
+
+  return isEucKr
+    ? iconv.decode(buffer, "euc-kr")
+    : buffer.toString("utf-8");
+}
+
 /**
- * 두란노 생명의 삶 웹페이지에서 특정 날짜(YYYY-MM-DD)의 본문 말씀을 크롤링합니다.
+ * 두란노 생명의 삶 웹페이지에서 특정 날짜(YYYY-MM-DD)의
+ * 개역개정(d=k)과 우리말성경(d=w) 본문을 모두 크롤링합니다.
  */
 export async function crawlDurannoQt(date: string): Promise<DailyWordData> {
   const sourceUrl = `https://www.duranno.com/qt/view/bible.asp?qtDate=${encodeURIComponent(date)}`;
 
   try {
-    const response = await fetch(sourceUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-      cache: "no-store",
-    });
+    const [htmlKrv, htmlKlb] = await Promise.all([
+      fetchDurannoVersionHtml(date, "k"),
+      fetchDurannoVersionHtml(date, "w").catch(() => ""),
+    ]);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} from Duranno`);
-    }
+    const parsedKrv = parseDurannoHtml(htmlKrv, date, sourceUrl);
+    const parsedKlb = htmlKlb
+      ? parseDurannoHtml(htmlKlb, date, sourceUrl)
+      : null;
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Content-Type 또는 meta 태그에서 인코딩 판별 (두란노 ASP 페이지는 주로 euc-kr 사용)
-    const contentType = response.headers.get("content-type") || "";
-    const asciiPreview = buffer.slice(0, 1024).toString("ascii").toLowerCase();
-    const isEucKr =
-      contentType.toLowerCase().includes("euc-kr") ||
-      asciiPreview.includes("euc-kr") ||
-      asciiPreview.includes("ks_c_5601");
-
-    const html = isEucKr
-      ? iconv.decode(buffer, "euc-kr")
-      : buffer.toString("utf-8");
-
-    const parsed = parseDurannoHtml(html, date, sourceUrl);
-    if (parsed.sections.length > 0 && parsed.sections[0].verses.length > 0) {
-      return parsed;
+    if (
+      parsedKrv.sections.length > 0 &&
+      parsedKrv.sections[0].verses.length > 0
+    ) {
+      return {
+        ...parsedKrv,
+        sectionsKlb:
+          parsedKlb &&
+          parsedKlb.sections.length > 0 &&
+          parsedKlb.sections[0].verses.length > 0
+            ? parsedKlb.sections
+            : parsedKrv.sections,
+      };
     }
 
     if (FALLBACK_DAILY_WORDS[date]) {
       return FALLBACK_DAILY_WORDS[date];
     }
-    return parsed;
+    return parsedKrv;
   } catch (error) {
     console.warn(`[Crawler] Failed to fetch live page for ${date}:`, error);
     if (FALLBACK_DAILY_WORDS[date]) {
@@ -168,7 +263,7 @@ export async function crawlDurannoQt(date: string): Promise<DailyWordData> {
 }
 
 /**
- * 두란노 생명의 삶 HTML 본문에서 제목, 성경 장절, 찬송가, 절별 말씀, 묵상 도우미를 추출합니다.
+ * 두란노 생명의 삶 HTML 본문에서 제목, 성경 장절, 절별 말씀, 묵상 도우미를 추출합니다.
  */
 export function parseDurannoHtml(
   html: string,
@@ -177,9 +272,47 @@ export function parseDurannoHtml(
 ): DailyWordData {
   const $ = cheerio.load(html);
 
-  // 스크립트/스타일 제거 후 순수 텍스트 라인 배열 추출
-  $("script, style, noscript").remove();
+  let scripture = $(".font-size h1 span").first().text().replace(/\s+/g, " ").trim();
+  let title = $(".font-size h1 em").first().text().replace(/\s+/g, " ").trim();
 
+  const sections: BibleSection[] = [];
+  const bibleContainer = $(".bible");
+
+  if (bibleContainer.length > 0) {
+    let currentSection: BibleSection = {
+      subheading: scripture || "오늘의 본문 말씀",
+      verses: [],
+    };
+
+    bibleContainer.children().each((_, el) => {
+      const tag = $(el);
+      if (tag.is("p.title")) {
+        if (currentSection.verses.length > 0) {
+          sections.push(currentSection);
+        }
+        currentSection = {
+          subheading: tag.text().replace(/\s+/g, " ").trim(),
+          verses: [],
+        };
+      } else if (tag.is("table")) {
+        const verseNum = parseInt(tag.find("th").text().trim(), 10);
+        const verseText = tag.find("td").text().replace(/\s+/g, " ").trim();
+        if (!isNaN(verseNum) && verseText) {
+          currentSection.verses.push({
+            verse: verseNum,
+            text: verseText,
+          });
+        }
+      }
+    });
+
+    if (currentSection.verses.length > 0) {
+      sections.push(currentSection);
+    }
+  }
+
+  // 텍스트 기반 폴백 파싱
+  $("script, style, noscript").remove();
   const rawText = $("body")
     .text()
     .replace(/\r/g, "\n")
@@ -187,110 +320,80 @@ export function parseDurannoHtml(
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 
-  let scripture = "";
-  let title = "";
-  let hymnTitle = "";
-  let hymnLyrics = "";
-  const sections: BibleSection[] = [];
-  const meditationGuide: string[] = [];
-
-  // 1. 성경 장절 + 제목 추출 (예: "빌레몬서 1 : 1~14사랑으로 결단하는 용서의 복음" 또는 분리된 라인)
-  for (let i = 0; i < rawText.length; i++) {
-    const line = rawText[i];
-    const matchCombined = line.match(
-      /^([가-힣]+(?:\s*[가-힣]+)?\s*\d+\s*:\s*\d+\s*~\s*\d+)\s*(.+)$/
-    );
-    if (matchCombined) {
-      scripture = matchCombined[1].trim();
-      title = matchCombined[2].trim();
-      break;
-    }
-    const matchScriptureOnly = line.match(
-      /^([가-힣]+(?:\s*[가-힣]+)?\s*\d+\s*:\s*\d+\s*~\s*\d+)$/
-    );
-    if (matchScriptureOnly && rawText[i + 1]) {
-      scripture = matchScriptureOnly[1].trim();
-      title = rawText[i + 1].trim();
-      break;
-    }
-  }
-
-  // 2. 오늘의 찬송 추출
-  const hymnIndex = rawText.findIndex((l) => l.includes("오늘의 찬송"));
-  if (hymnIndex !== -1) {
-    for (let i = hymnIndex + 1; i < Math.min(hymnIndex + 6, rawText.length); i++) {
+  if (!scripture || !title) {
+    for (let i = 0; i < rawText.length; i++) {
       const line = rawText[i];
-      if (line.includes("역본 선택") || line.includes("개역개정")) break;
-      if (line.startsWith("(") && line.endsWith(")")) {
-        hymnTitle = line.slice(1, -1).trim();
-      } else if (!hymnLyrics) {
-        hymnLyrics = line;
+      const matchCombined = line.match(
+        /^([가-힣]+(?:\s*[가-힣]+)?\s*\d+\s*:\s*\d+\s*~\s*\d+)\s*(.+)$/
+      );
+      if (matchCombined) {
+        scripture = matchCombined[1].trim();
+        title = matchCombined[2].trim();
+        break;
       }
     }
   }
 
-  // 3. 본문 말씀 섹션 및 절(Verse) 추출
-  const startMarkerIdx = rawText.findIndex(
-    (l) => l.includes("개역개정") || l.includes("역본 선택")
-  );
-  const endMarkerIdx = rawText.findIndex(
-    (l) =>
-      l.includes("아멘하셨습니다") ||
-      l.includes("저작권은 대한성서공회") ||
-      l.includes("묵상 도우미")
-  );
+  if (sections.length === 0) {
+    const startMarkerIdx = rawText.findIndex(
+      (l) => l.includes("개역개정") || l.includes("역본 선택")
+    );
+    const endMarkerIdx = rawText.findIndex(
+      (l) =>
+        l.includes("아멘하셨습니다") ||
+        l.includes("저작권은") ||
+        l.includes("묵상 도우미")
+    );
 
-  const verseRegion =
-    startMarkerIdx !== -1
-      ? rawText.slice(
-          startMarkerIdx + 1,
-          endMarkerIdx !== -1 ? endMarkerIdx : rawText.length
-        )
-      : rawText;
+    const verseRegion =
+      startMarkerIdx !== -1
+        ? rawText.slice(
+            startMarkerIdx + 1,
+            endMarkerIdx !== -1 ? endMarkerIdx : rawText.length
+          )
+        : rawText;
 
-  let currentSection: BibleSection = {
-    subheading: scripture || "오늘의 본문 말씀",
-    verses: [],
-  };
+    let currentSection: BibleSection = {
+      subheading: scripture || "오늘의 본문 말씀",
+      verses: [],
+    };
 
-  for (const line of verseRegion) {
-    if (
-      line.includes("우리말성경") ||
-      line.includes("개역개정") ||
-      line.includes("역본 선택")
-    ) {
-      continue;
-    }
-
-    // 절 번호 + 본문 매칭 (예: "1 그리스도 예수를 위하여...")
-    const verseMatch = line.match(/^(\d{1,3})\s+(.+)$/);
-    if (verseMatch) {
-      const verseNum = parseInt(verseMatch[1], 10);
-      const verseText = verseMatch[2].trim();
-      currentSection.verses.push({
-        verse: verseNum,
-        text: verseText,
-      });
-      continue;
-    }
-
-    // 소제목 매칭 (예: "빌레몬의 사랑과 믿음을 칭찬함 1:1~7")
-    if (/\d+\s*:\s*\d+/.test(line) && line.length < 60) {
-      if (currentSection.verses.length > 0) {
-        sections.push(currentSection);
+    for (const line of verseRegion) {
+      if (
+        line.includes("우리말성경") ||
+        line.includes("개역개정") ||
+        line.includes("역본 선택")
+      ) {
+        continue;
       }
-      currentSection = {
-        subheading: line,
-        verses: [],
-      };
+
+      const verseMatch = line.match(/^(\d{1,3})\s+(.+)$/);
+      if (verseMatch) {
+        currentSection.verses.push({
+          verse: parseInt(verseMatch[1], 10),
+          text: verseMatch[2].trim(),
+        });
+        continue;
+      }
+
+      if (/\d+\s*:\s*\d+/.test(line) && line.length < 60) {
+        if (currentSection.verses.length > 0) {
+          sections.push(currentSection);
+        }
+        currentSection = {
+          subheading: line,
+          verses: [],
+        };
+      }
+    }
+
+    if (currentSection.verses.length > 0) {
+      sections.push(currentSection);
     }
   }
 
-  if (currentSection.verses.length > 0) {
-    sections.push(currentSection);
-  }
-
-  // 4. 묵상 도우미 추출
+  // 묵상 도우미 추출
+  const meditationGuide: string[] = [];
   const helperIdx = rawText.findIndex((l) => l === "묵상 도우미");
   if (helperIdx !== -1) {
     for (let i = helperIdx + 1; i < rawText.length; i++) {
@@ -314,8 +417,8 @@ export function parseDurannoHtml(
     date,
     title: title || "오늘의 생명의 삶 QT",
     scripture: scripture || "오늘의 본문",
-    hymn: [hymnTitle, hymnLyrics].filter(Boolean).join("\n"),
     sections,
+    sectionsKlb: sections,
     meditationGuide,
     sourceUrl,
     crawledAt: new Date().toISOString(),

@@ -33,8 +33,8 @@
 - [x] **2-2. TypeScript 타입 검증 (`npx tsc --noEmit`) 및 프로덕션 빌드 검증 (`npm run build`)**
 - [x] **2-3. 크롤러 단독 실행 검증 (`npm run crawl`)**
   - `.data/local-store.json`에 오늘자 생명의 삶 본문(`빌레몬서 1 : 1~14 | 사랑으로 결단하는 용서의 복음`) 저장 확인 완료
-- [ ] **2-4. 로컬 개발 서버 실행 (`npm run dev`) 및 브라우저 확인**
-  - 터미널에서 `npm run dev` 실행 후 `http://localhost:3000` 접속
+- [x] **2-4. 로컬 개발 서버 실행 (`npm run dev`) 및 브라우저 확인**
+  - 터미널에서 `npm run dev` 실행 후 `http://localhost:3000` (메인 QT 웹페이지) 및 `http://localhost:3000/planner` (플래너 & `.env` 설정 가이드 웹페이지) 접속
 
 ---
 

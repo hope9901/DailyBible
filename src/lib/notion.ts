@@ -1,13 +1,15 @@
 import { Client } from "@notionhq/client";
 import fs from "fs";
 import path from "path";
-import { DailyWordData, crawlDurannoQt } from "./crawler";
+import { DailyWordData, BibleTranslation, crawlDurannoQt } from "./crawler";
 
 export interface UserProfile {
   userId: string;
-  provider: "kakao" | "naver" | "google" | "demo";
+  provider: "kakao" | "naver" | "google" | "local" | "demo";
   email: string;
   nickname: string;
+  password?: string;
+  preferredTranslation: BibleTranslation; // "krv" (개역개정, 기본) | "klb" (우리말성경)
   isOnboarded: boolean;
   createdAt: string;
 }
@@ -67,13 +69,12 @@ function writeLocalStore(data: LocalStoreSchema): void {
     }
     fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
   } catch (err) {
-    // Vercel 서버리스 환경 등 읽기 전용 파일시스템일 경우 무시
     console.warn("[LocalStore] Write skipped:", err);
   }
 }
 
 /**
- * 1. 일일 말씀(Daily_Word) 조회 및 저장 (Notion DB 연동 + 자동 크롤링 폴백)
+ * 1. 일일 말씀(Daily_Word) 조회 및 저장 (개역개정 + 우리말성경 모두 포함)
  */
 export async function getDailyWord(date: string): Promise<DailyWordData> {
   if (isNotionConfigured()) {
@@ -101,7 +102,10 @@ export async function getDailyWord(date: string): Promise<DailyWordData> {
 
         const rawJson = getText(props.ContentJson);
         if (rawJson) {
-          return JSON.parse(rawJson) as DailyWordData;
+          const parsed = JSON.parse(rawJson) as DailyWordData;
+          if (parsed.sectionsKlb && parsed.sectionsKlb.length > 0) {
+            return parsed;
+          }
         }
       }
     } catch (err) {
@@ -109,20 +113,26 @@ export async function getDailyWord(date: string): Promise<DailyWordData> {
     }
   }
 
-  // 로컬 캐시 확인
+  // 로컬 캐시 확인 (우리말성경 sectionsKlb까지 있는지 확인)
   const store = readLocalStore();
-  if (store.dailyWords[date]) {
-    return store.dailyWords[date];
+  const cached = store.dailyWords[date];
+  if (
+    cached &&
+    Array.isArray(cached.sectionsKlb) &&
+    cached.sectionsKlb.length > 0 &&
+    cached.sectionsKlb[0]?.verses?.[0]?.text !==
+      cached.sections?.[0]?.verses?.[0]?.text
+  ) {
+    return cached;
   }
 
-  // 아직 저장된 말씀이 없으면 실시간 크롤링 후 저장
+  // 아직 저장된 말씀이 없거나 구버전 캐시이면 개역개정 + 우리말성경 실시간 크롤링 후 저장
   const crawled = await crawlDurannoQt(date);
   await saveDailyWord(crawled);
   return crawled;
 }
 
 export async function saveDailyWord(word: DailyWordData): Promise<void> {
-  // 로컬 저장소에 항상 백업
   const store = readLocalStore();
   store.dailyWords[word.date] = word;
   writeLocalStore(store);
@@ -133,7 +143,6 @@ export async function saveDailyWord(word: DailyWordData): Promise<void> {
     const notion = getNotionClient();
     const dbId = process.env.NOTION_DAILY_WORD_DB_ID!;
 
-    // 이미 해당 날짜 레코드가 있는지 확인
     const existing = await notion.databases.query({
       database_id: dbId,
       filter: {
@@ -143,7 +152,11 @@ export async function saveDailyWord(word: DailyWordData): Promise<void> {
       page_size: 1,
     });
 
-    const contentJsonStr = JSON.stringify(word).slice(0, 1990);
+    const fullJson = JSON.stringify(word);
+    const chunks: { text: { content: string } }[] = [];
+    for (let i = 0; i < fullJson.length; i += 1900) {
+      chunks.push({ text: { content: fullJson.slice(i, i + 1900) } });
+    }
 
     const properties: any = {
       Title: {
@@ -156,7 +169,7 @@ export async function saveDailyWord(word: DailyWordData): Promise<void> {
         rich_text: [{ text: { content: word.scripture } }],
       },
       ContentJson: {
-        rich_text: [{ text: { content: contentJsonStr } }],
+        rich_text: chunks.slice(0, 5),
       },
     };
 
@@ -318,17 +331,21 @@ export async function upsertUserQtLog(params: {
 }
 
 /**
- * 3. 사용자 프로필(닉네임) 조회 및 저장
+ * 3. 사용자 프로필(닉네임, 비밀번호, 선호 역본) 조회 및 저장
  */
 export async function getOrCreateUserProfile(params: {
   userId: string;
-  provider: "kakao" | "naver" | "google" | "demo";
+  provider: "kakao" | "naver" | "google" | "local" | "demo";
   email: string;
   defaultName: string;
 }): Promise<UserProfile> {
   const store = readLocalStore();
   if (store.users[params.userId]) {
-    return store.users[params.userId];
+    const u = store.users[params.userId];
+    if (!u.preferredTranslation) {
+      u.preferredTranslation = "krv";
+    }
+    return u;
   }
 
   if (isNotionConfigured() && process.env.NOTION_USERS_DB_ID) {
@@ -354,6 +371,7 @@ export async function getOrCreateUserProfile(params: {
           provider: (getText(props.Provider) as any) || params.provider,
           email: getText(props.Email) || params.email,
           nickname: getText(props.Nickname) || params.defaultName,
+          preferredTranslation: "krv",
           isOnboarded: Boolean(props.IsOnboarded?.checkbox),
           createdAt: page.created_time,
         };
@@ -371,6 +389,7 @@ export async function getOrCreateUserProfile(params: {
     provider: params.provider,
     email: params.email,
     nickname: params.defaultName,
+    preferredTranslation: "krv",
     isOnboarded: false,
     createdAt: new Date().toISOString(),
   };
@@ -380,61 +399,140 @@ export async function getOrCreateUserProfile(params: {
   return newProfile;
 }
 
-export async function updateUserNickname(
-  userId: string,
-  nickname: string
-): Promise<UserProfile> {
+export async function registerOrLoginUser(params: {
+  mode: "register" | "login";
+  userId: string;
+  password?: string;
+  nickname?: string;
+  preferredTranslation?: BibleTranslation;
+  provider?: "kakao" | "naver" | "google" | "local";
+}): Promise<{ ok: boolean; error?: string; profile?: UserProfile }> {
   const store = readLocalStore();
-  const existing = store.users[userId] || {
-    userId,
-    provider: "demo",
+  const cleanId = params.userId.trim();
+
+  if (params.mode === "register") {
+    if (store.users[cleanId] && store.users[cleanId].isOnboarded) {
+      return { ok: false, error: "이미 사용 중인 아이디입니다." };
+    }
+    const profile: UserProfile = {
+      userId: cleanId,
+      provider: params.provider || "local",
+      email: "",
+      nickname: params.nickname?.trim() || cleanId,
+      password: params.password || "",
+      preferredTranslation: params.preferredTranslation || "krv",
+      isOnboarded: true,
+      createdAt: new Date().toISOString(),
+    };
+    store.users[cleanId] = profile;
+    writeLocalStore(store);
+    await syncUserToNotion(profile);
+    return { ok: true, profile };
+  }
+
+  // login
+  const existing = store.users[cleanId];
+  if (!existing) {
+    return { ok: false, error: "존재하지 않는 아이디입니다. 먼저 회원가입을 진행해 주세요." };
+  }
+  if (existing.password && existing.password !== (params.password || "")) {
+    return { ok: false, error: "비밀번호가 일치하지 않습니다." };
+  }
+  if (!existing.preferredTranslation) {
+    existing.preferredTranslation = "krv";
+  }
+  return { ok: true, profile: existing };
+}
+
+export async function updateUserProfileSettings(params: {
+  userId: string;
+  nickname?: string;
+  currentPassword?: string;
+  newPassword?: string;
+  preferredTranslation?: BibleTranslation;
+}): Promise<{ ok: boolean; error?: string; profile?: UserProfile }> {
+  const store = readLocalStore();
+  const existing: UserProfile = store.users[params.userId] || {
+    userId: params.userId,
+    provider: "local",
     email: "",
-    nickname,
+    nickname: params.nickname || "성도",
+    preferredTranslation: params.preferredTranslation || "krv",
     isOnboarded: true,
     createdAt: new Date().toISOString(),
   };
 
-  existing.nickname = nickname.trim();
-  existing.isOnboarded = true;
-  store.users[userId] = existing;
-  writeLocalStore(store);
-
-  if (isNotionConfigured() && process.env.NOTION_USERS_DB_ID) {
-    try {
-      const notion = getNotionClient();
-      const dbId = process.env.NOTION_USERS_DB_ID;
-      const query = await notion.databases.query({
-        database_id: dbId,
-        filter: {
-          property: "UserId",
-          title: { equals: userId },
-        },
-        page_size: 1,
-      });
-
-      const properties: any = {
-        UserId: { title: [{ text: { content: userId } }] },
-        Provider: { rich_text: [{ text: { content: existing.provider } }] },
-        Email: { rich_text: [{ text: { content: existing.email } }] },
-        Nickname: { rich_text: [{ text: { content: existing.nickname } }] },
-        IsOnboarded: { checkbox: true },
-      };
-
-      if (query.results.length > 0) {
-        await notion.pages.update({
-          page_id: query.results[0].id,
-          properties,
-        });
-      } else {
-        await notion.pages.create({
-          parent: { database_id: dbId },
-          properties,
-        });
-      }
-    } catch (err) {
-      console.warn("[Notion] updateUserNickname error:", err);
+  if (params.newPassword && params.newPassword.trim()) {
+    if (
+      existing.password &&
+      params.currentPassword !== undefined &&
+      params.currentPassword !== "" &&
+      existing.password !== params.currentPassword
+    ) {
+      return { ok: false, error: "현재 비밀번호가 일치하지 않습니다." };
     }
+    existing.password = params.newPassword.trim();
   }
 
-  return existing;
+  if (params.nickname && params.nickname.trim()) {
+    existing.nickname = params.nickname.trim();
+  }
+
+  if (params.preferredTranslation) {
+    existing.preferredTranslation = params.preferredTranslation;
+  }
+
+  existing.isOnboarded = true;
+  store.users[params.userId] = existing;
+  writeLocalStore(store);
+
+  await syncUserToNotion(existing);
+
+  return { ok: true, profile: existing };
+}
+
+async function syncUserToNotion(user: UserProfile): Promise<void> {
+  if (!isNotionConfigured() || !process.env.NOTION_USERS_DB_ID) return;
+  try {
+    const notion = getNotionClient();
+    const dbId = process.env.NOTION_USERS_DB_ID;
+    const query = await notion.databases.query({
+      database_id: dbId,
+      filter: {
+        property: "UserId",
+        title: { equals: user.userId },
+      },
+      page_size: 1,
+    });
+
+    const properties: any = {
+      UserId: { title: [{ text: { content: user.userId } }] },
+      Provider: { rich_text: [{ text: { content: user.provider } }] },
+      Email: {
+        rich_text: [
+          {
+            text: {
+              content: user.email || `역본:${user.preferredTranslation}`,
+            },
+          },
+        ],
+      },
+      Nickname: { rich_text: [{ text: { content: user.nickname } }] },
+      IsOnboarded: { checkbox: true },
+    };
+
+    if (query.results.length > 0) {
+      await notion.pages.update({
+        page_id: query.results[0].id,
+        properties,
+      });
+    } else {
+      await notion.pages.create({
+        parent: { database_id: dbId },
+        properties,
+      });
+    }
+  } catch (err) {
+    console.warn("[Notion] syncUserToNotion error:", err);
+  }
 }
