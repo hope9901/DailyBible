@@ -78,6 +78,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const qtStatus = getQtDayStatus(new Date());
+    if (date !== qtStatus.activeQtDate) {
+      return NextResponse.json(
+        { error: "과거 날짜에는 QT 완료 체크를 할 수 없습니다." },
+        { status: 403 }
+      );
+    }
+
     const saved = await upsertUserQtLog({
       userId,
       date,

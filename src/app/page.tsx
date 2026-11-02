@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { signIn } from "next-auth/react";
 import {
   BookOpen,
   Calendar as CalendarIcon,
@@ -66,7 +65,7 @@ interface QtDayStatus {
 
 interface SessionUser {
   userId: string;
-  provider: "kakao" | "naver" | "google" | "local";
+  provider: "local";
   nickname: string;
   preferredTranslation: BibleTranslation;
   isOnboarded: boolean;
@@ -85,9 +84,6 @@ export default function DailyQtHomePage() {
   const [authTranslation, setAuthTranslation] =
     useState<BibleTranslation>("krv");
   const [authError, setAuthError] = useState<string | null>(null);
-
-  // 소셜 최초 가입 온보딩 모달 (역본 선택 + 비밀번호/닉네임 설정)
-  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
   // 회원설정(비밀번호 및 기본 역본 변경) 모달
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -115,12 +111,6 @@ export default function DailyQtHomePage() {
   const [showReflectionEditor, setShowReflectionEditor] = useState(false);
   const [fontSize, setFontSize] = useState<"base" | "lg" | "xl">("lg");
 
-  // 서버/연동 상태
-  const [oauthConfigured, setOauthConfigured] = useState({
-    kakao: false,
-    naver: false,
-    google: false,
-  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [crawling, setCrawling] = useState(false);
@@ -143,6 +133,7 @@ export default function DailyQtHomePage() {
           parsed.preferredTranslation === "klb" ? "klb" : "krv";
         const normalizedUser: SessionUser = {
           ...parsed,
+          provider: "local",
           preferredTranslation: pref,
         };
         setUser(normalizedUser);
@@ -169,7 +160,7 @@ export default function DailyQtHomePage() {
         if (monthParam) params.set("month", monthParam);
         if (currentUser?.userId) {
           params.set("userId", currentUser.userId);
-          params.set("provider", currentUser.provider);
+          params.set("provider", "local");
         }
 
         const res = await fetch(`/api/qt?${params.toString()}`);
@@ -180,7 +171,6 @@ export default function DailyQtHomePage() {
         if (data.selectedMonth) setCurrentMonth(data.selectedMonth);
         if (data.dailyWord) setDailyWord(data.dailyWord);
         if (data.monthLogs) setMonthLogs(data.monthLogs);
-        if (data.oauthConfigured) setOauthConfigured(data.oauthConfigured);
 
         if (data.currentDateLog) {
           setIsCompleted(Boolean(data.currentDateLog.isCompleted));
@@ -226,7 +216,7 @@ export default function DailyQtHomePage() {
     await fetchQtData(selectedDate, nextMonthKey, user);
   };
 
-  // 일반 로그인 / 회원가입 제출 처리
+  // 아이디 / 비밀번호 로그인 & 회원가입 제출 처리
   const handleLocalAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -263,7 +253,7 @@ export default function DailyQtHomePage() {
         data.profile.preferredTranslation === "klb" ? "klb" : "krv";
       const loggedInUser: SessionUser = {
         userId: data.profile.userId,
-        provider: data.profile.provider || "local",
+        provider: "local",
         nickname: data.profile.nickname,
         preferredTranslation: pref,
         isOnboarded: true,
@@ -282,74 +272,6 @@ export default function DailyQtHomePage() {
       await fetchQtData(selectedDate, currentMonth, loggedInUser);
     } catch {
       setAuthError("요청 처리 중 오류가 발생했습니다.");
-    }
-  };
-
-  // 소셜 로그인 처리 (카카오 / 네이버 / 구글)
-  const handleSocialLogin = async (provider: "kakao" | "naver" | "google") => {
-    if (oauthConfigured[provider]) {
-      await signIn(provider, { callbackUrl: "/" });
-      return;
-    }
-
-    const defaultLabels = {
-      kakao: "카카오 성도",
-      naver: "네이버 성도",
-      google: "구글 성도",
-    };
-
-    const tempUser: SessionUser = {
-      userId: `${provider}_member_01`,
-      provider,
-      nickname: defaultLabels[provider],
-      preferredTranslation: "krv", // 기본값: 개역개정
-      isOnboarded: false,
-    };
-
-    setUser(tempUser);
-    setAuthNickname(defaultLabels[provider]);
-    setAuthTranslation("krv");
-    setAuthPassword("");
-    setShowAuthModal(false);
-    setShowOnboardingModal(true);
-  };
-
-  // 소셜 최초 가입 시 닉네임 / 비밀번호 / 기본 역본(개역개정 vs 우리말성경) 설정 완료
-  const handleCompleteOnboarding = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    const finalNickname = authNickname.trim() || user.nickname;
-
-    try {
-      await fetch("/api/user/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.userId,
-          nickname: finalNickname,
-          newPassword: authPassword.trim() || undefined,
-          preferredTranslation: authTranslation,
-        }),
-      });
-
-      const updatedUser: SessionUser = {
-        ...user,
-        nickname: finalNickname,
-        preferredTranslation: authTranslation,
-        isOnboarded: true,
-      };
-      setUser(updatedUser);
-      setTranslation(authTranslation);
-      localStorage.setItem("daily_qt_user", JSON.stringify(updatedUser));
-      setShowOnboardingModal(false);
-      showToast(
-        `${finalNickname}님 환영합니다! 기본 역본이 ${
-          authTranslation === "klb" ? "우리말성경" : "개역개정"
-        }으로 설정되었습니다.`
-      );
-      await fetchQtData(selectedDate, currentMonth, updatedUser);
-    } catch (err) {
-      console.error("Failed to save onboarding:", err);
     }
   };
 
@@ -421,8 +343,16 @@ export default function DailyQtHomePage() {
     showToast("로그아웃되었습니다.");
   };
 
-  // QT 읽음 체크 토글
+  // 오늘(00:30 KST 기준 활성 날짜)인지 판별
+  const isTodayActiveQt =
+    !selectedDate ||
+    !qtStatus?.activeQtDate ||
+    selectedDate === qtStatus.activeQtDate;
+
+  // QT 읽음 체크 토글 (오늘 활성 QT 날짜에서만 가능)
   const handleToggleQtCheck = async (nextChecked: boolean) => {
+    if (!isTodayActiveQt) return;
+
     if (!user) {
       setShowAuthModal(true);
       showToast("로그인 후 QT 완료를 체크할 수 있습니다.");
@@ -461,8 +391,10 @@ export default function DailyQtHomePage() {
     }
   };
 
-  // 느낀점(은혜 받은점) 저장
+  // 느낀점(은혜 받은점) 저장 (오늘 활성 QT 날짜에서만 가능)
   const handleSaveReflection = async () => {
+    if (!isTodayActiveQt) return;
+
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -673,7 +605,7 @@ export default function DailyQtHomePage() {
 
       {/* 본문 1단 레이아웃: 1) 성경 말씀 카드 -> 2) 말씀 밑에 위치한 오늘 QT 완료 체크 카드 */}
       <main className="mx-auto mt-6 max-w-4xl space-y-5 px-4">
-        {/* 1. 생명의 삶 본문 말씀 카드 (개역개정 / 우리말성경 토글 지원, 오늘의 찬송 제거) */}
+        {/* 1. 생명의 삶 본문 말씀 카드 (개역개정 / 우리말성경 토글 지원) */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           {/* 상단 날짜 및 역본 토글(개역개정 / 우리말성경) / 글자 크기 조절 */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
@@ -681,16 +613,14 @@ export default function DailyQtHomePage() {
               <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
                 {selectedDate || "오늘"} 말씀
               </span>
-              {selectedDate &&
-                qtStatus?.activeQtDate &&
-                selectedDate !== qtStatus.activeQtDate && (
-                  <button
-                    onClick={() => handleSelectDate(qtStatus.activeQtDate)}
-                    className="text-xs font-semibold text-amber-700 underline hover:text-amber-800"
-                  >
-                    오늘 말씀으로 돌아가기
-                  </button>
-                )}
+              {!isTodayActiveQt && qtStatus?.activeQtDate && (
+                <button
+                  onClick={() => handleSelectDate(qtStatus.activeQtDate)}
+                  className="text-xs font-semibold text-amber-700 underline hover:text-amber-800"
+                >
+                  오늘 말씀으로 돌아가기
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -849,91 +779,107 @@ export default function DailyQtHomePage() {
           ) : null}
         </section>
 
-        {/* 2. 말씀 바로 밑에 위치한 오늘 QT 완료 체크 & 선택형 느낀점 메모 카드 */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleToggleQtCheck(!isCompleted)}
-                disabled={saving}
-                className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all shadow-sm ${
-                  isCompleted
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "bg-amber-500 text-white hover:bg-amber-600"
-                }`}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>{isCompleted ? "오늘 QT 완료됨" : "오늘 QT 완료 체크"}</span>
-              </button>
+        {/* 2. 말씀 밑 QT 완료 체크 영역: 오늘 날짜일 때만 완료 체크 버튼 노출, 과거 날짜일 때는 버튼 숨김 */}
+        {isTodayActiveQt ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleToggleQtCheck(!isCompleted)}
+                  disabled={saving}
+                  className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all shadow-sm ${
+                    isCompleted
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "bg-amber-500 text-white hover:bg-amber-600"
+                  }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>
+                    {isCompleted ? "오늘 QT 완료됨" : "오늘 QT 완료 체크"}
+                  </span>
+                </button>
 
-              <div>
-                <p className="text-sm font-bold text-slate-900">
-                  {selectedDate || "오늘"} QT 점검
-                </p>
-                <p className="text-xs text-slate-500">
-                  {isCompleted
-                    ? "오늘 말씀을 읽고 캘린더에 기록했습니다."
-                    : "말씀을 다 읽으셨다면 완료 체크를 눌러주세요."}
-                </p>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">
+                    {selectedDate || "오늘"} QT 점검
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {isCompleted
+                      ? "오늘 말씀을 읽고 캘린더에 기록했습니다."
+                      : "말씀을 다 읽으셨다면 완료 체크를 눌러주세요."}
+                  </p>
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowReflectionEditor((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                <PenLine className="h-3.5 w-3.5 text-amber-600" />
+                <span>
+                  {showReflectionEditor
+                    ? "메모 닫기"
+                    : reflection
+                    ? "내 묵상 메모 수정"
+                    : "느낀점 메모 (선택)"}
+                </span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowReflectionEditor((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              <PenLine className="h-3.5 w-3.5 text-amber-600" />
-              <span>
-                {showReflectionEditor
-                  ? "메모 닫기"
-                  : reflection
-                  ? "내 묵상 메모 수정"
-                  : "느낀점 메모 (선택)"}
-              </span>
-            </button>
-          </div>
+            {/* 저장된 느낀점 한눈에 보기 (편집기가 닫혀 있을 때) */}
+            {!showReflectionEditor && reflection && (
+              <div className="mt-3.5 flex items-start justify-between gap-2 rounded-xl bg-amber-50/70 px-3.5 py-2.5 text-xs text-slate-700">
+                <p className="whitespace-pre-line leading-relaxed">
+                  <strong className="mr-1.5 text-amber-900">나의 메모:</strong>
+                  {reflection}
+                </p>
+              </div>
+            )}
 
-          {/* 저장된 느낀점 한눈에 보기 (편집기가 닫혀 있을 때) */}
-          {!showReflectionEditor && reflection && (
-            <div className="mt-3.5 flex items-start justify-between gap-2 rounded-xl bg-amber-50/70 px-3.5 py-2.5 text-xs text-slate-700">
-              <p className="whitespace-pre-line leading-relaxed">
-                <strong className="mr-1.5 text-amber-900">나의 메모:</strong>
+            {/* 선택형 느낀점 입력창 */}
+            {showReflectionEditor && (
+              <div className="mt-3.5 space-y-2.5 border-t border-slate-100 pt-3.5">
+                <textarea
+                  rows={3}
+                  value={reflection}
+                  onChange={(e) => setReflection(e.target.value)}
+                  placeholder="오늘 말씀을 통해 받은 은혜나 짧은 기도문을 남겨보세요. (선택사항)"
+                  className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReflectionEditor(false)}
+                    className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveReflection}
+                    disabled={saving}
+                    className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {saving ? "저장 중..." : "메모 저장"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : (
+          /* 과거 날짜 조회 시: QT 완료 체크 버튼은 숨기고, 기존에 작성된 기록이 있으면 읽기 전용으로만 표시 */
+          reflection && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-bold text-amber-900">
+                {selectedDate} 작성했던 묵상 메모
+              </p>
+              <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
                 {reflection}
               </p>
-            </div>
-          )}
-
-          {/* 선택형 느낀점 입력창 */}
-          {showReflectionEditor && (
-            <div className="mt-3.5 space-y-2.5 border-t border-slate-100 pt-3.5">
-              <textarea
-                rows={3}
-                value={reflection}
-                onChange={(e) => setReflection(e.target.value)}
-                placeholder="오늘 말씀을 통해 받은 은혜나 짧은 기도문을 남겨보세요. (선택사항)"
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReflectionEditor(false)}
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveReflection}
-                  disabled={saving}
-                  className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                >
-                  {saving ? "저장 중..." : "메모 저장"}
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
+            </section>
+          )
+        )}
       </main>
 
       {/* 우측 상단 버튼 클릭 시 열리는 QT 현황 캘린더 팝업 모달 */}
@@ -1030,7 +976,7 @@ export default function DailyQtHomePage() {
         </div>
       )}
 
-      {/* 로그인 & 회원가입 모달 (회원가입 시 기본 역본 '개역개정' vs '우리말성경' 선택 가능) */}
+      {/* 아이디/비밀번호 로그인 & 회원가입 모달 (소셜 로그인 제거 완료) */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
@@ -1170,130 +1116,7 @@ export default function DailyQtHomePage() {
                 {authTab === "login" ? "로그인하기" : "회원가입 완료"}
               </button>
             </form>
-
-            {/* 소셜 로그인 구분선 */}
-            <div className="my-4 flex items-center gap-2 text-[11px] text-slate-400">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span>또는 소셜 계정으로 시작</span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleSocialLogin("kakao")}
-                className="flex items-center justify-center rounded-xl bg-[#FEE500] py-2.5 text-xs font-bold text-[#191919] hover:opacity-95"
-              >
-                카카오
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialLogin("naver")}
-                className="flex items-center justify-center rounded-xl bg-[#03C75A] py-2.5 text-xs font-bold text-white hover:opacity-95"
-              >
-                네이버
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialLogin("google")}
-                className="flex items-center justify-center rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Google
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-
-      {/* 소셜 최초 가입 시 닉네임 / 비밀번호 / 기본 역본 선택 모달 */}
-      {showOnboardingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={handleCompleteOnboarding}
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
-          >
-            <h3 className="text-lg font-bold text-slate-900">
-              회원가입 기본 설정
-            </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              사용하실 닉네임과 초기화면에 표시할 기본 성경 역본을 선택해 주세요.
-            </p>
-
-            <div className="mt-4 space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">
-                  닉네임 (이름)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={authNickname}
-                  onChange={(e) => setAuthNickname(e.target.value)}
-                  placeholder="예: 홍길동"
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">
-                  비밀번호 설정 (선택)
-                </label>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="비밀번호 입력 (선택)"
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">
-                  기본 성경 역본 선택 (초기화면 표시)
-                </label>
-                <div className="mt-1.5 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAuthTranslation("krv")}
-                    className={`rounded-xl border py-2.5 text-xs font-bold transition-all ${
-                      authTranslation === "krv"
-                        ? "border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    개역개정 (기본)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthTranslation("klb")}
-                    className={`rounded-xl border py-2.5 text-xs font-bold transition-all ${
-                      authTranslation === "klb"
-                        ? "border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    우리말성경
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowOnboardingModal(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
-              >
-                취소
-              </button>
-              <button
-                type="submit"
-                className="rounded-xl bg-amber-500 px-5 py-2 text-xs font-bold text-white hover:bg-amber-600"
-              >
-                저장하고 시작하기
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
