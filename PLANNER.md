@@ -38,25 +38,19 @@
 
 ---
 
-## 🗂️ Phase 3. `.env` 파일 생성 및 노션(Notion) DB 3개 연동 (사용자 설정 필요)
+## ✅ Phase 3. `.env` 파일 생성 및 노션(Notion) DB 3개 연동 (완료)
 
-> 프로젝트 루트에 `.env.example`을 참고하여 직접 **`.env`** 파일을 만들고 아래 값들을 채워주세요.
+> 프로젝트 루트의 **`.env`** 파일에 노션 API 토큰 및 3개 DB ID가 모두 자동 설정되었고, 노션 테이블 스키마 구축 및 초기 말씀 적재까지 완료되었습니다.
 
-- [ ] **3-1. 노션 API 통합(Integration) 토큰 발급**
-  - [Notion Developers (내 통합)](https://www.notion.so/my-integrations) 접속 -> `새 API 통합(New integration)` 생성
-  - 발급된 시크릿 토큰을 `.env`의 `NOTION_API_KEY`에 입력
-- [ ] **3-2. 노션 워크스페이스에 3개 데이터베이스 생성 및 속성(Property) 설정**
-  1. **`Daily_Word` DB (일일 말씀 저장소)**
-     - 필수 컬럼: `Title` (제목), `Date` (텍스트), `Scripture` (텍스트), `ContentJson` (텍스트)
-     - 데이터베이스 ID를 `.env`의 `NOTION_DAILY_WORD_DB_ID`에 입력
-  2. **`Users` DB (회원 프로필 저장소)**
-     - 필수 컬럼: `UserId` (제목), `Provider` (텍스트), `Email` (텍스트), `Nickname` (텍스트), `IsOnboarded` (체크박스)
-     - 데이터베이스 ID를 `.env`의 `NOTION_USERS_DB_ID`에 입력
-  3. **`QT_Logs` DB (일일 QT 체크 및 느낀점 저장소)**
-     - 필수 컬럼: `LogId` (제목), `UserId` (텍스트), `Date` (텍스트), `IsCompleted` (체크박스), `Reflection` (텍스트), `UpdatedAt` (텍스트)
-     - 데이터베이스 ID를 `.env`의 `NOTION_QT_LOGS_DB_ID`에 입력
-- [ ] **3-3. 3개 데이터베이스에 노션 API 통합(Integration) 연결 권한 부여**
-  - 각 노션 데이터베이스 우측 상단 `•••` 클릭 -> `연결(Connections)` -> 3-1에서 만든 Integration 추가
+- [x] **3-1. 노션 API 통합(Integration) 토큰 발급 (`dailybible`)**
+- [x] **3-2. 노션 워크스페이스에 3개 데이터베이스 생성 및 속성(Property) 자동 구축 완료**
+  1. **`말씀 DB` (`Daily_Word`, ID: `40cc3da9-50be-8082-bc24-dfaa7c4e53a4`)**
+     - 생성된 컬럼: `Title` (제목), `Date` (텍스트), `Scripture` (텍스트), `ContentJson` (텍스트)
+  2. **`회원 DB` (`Users`, ID: `40cc3da9-50be-803d-8c26-dab05dfcc061`)**
+     - 생성된 컬럼: `UserId` (제목), `Provider` (텍스트), `Email` (텍스트), `Nickname` (텍스트), `IsOnboarded` (체크박스)
+  3. **`QT 기록 DB` (`QT_Logs`, ID: `40cc3da9-50be-8085-9400-eee4a12458f2`)**
+     - 생성된 컬럼: `LogId` (제목), `UserId` (텍스트), `Date` (텍스트), `IsCompleted` (체크박스), `Reflection` (텍스트), `UpdatedAt` (텍스트)
+- [x] **3-3. 3개 데이터베이스에 노션 API 통합(Integration) 연결 권한 부여 및 말씀 적재 완료**
 
 ---
 
@@ -74,12 +68,10 @@
 
 ---
 
-## ☁️ Phase 5. GitHub 저장소 업로드 & Vercel 배포 (진행 예정)
+## ☁️ Phase 5. GitHub 저장소 업로드 & Vercel 배포
 
-- [ ] **5-1. GitHub 원격 저장소 생성 후 주소 알려주기 (또는 직접 푸시)**
-  - GitHub에 빈 저장소를 만든 뒤 원격 저장소 URL을 알려주시면 커밋 및 푸시 설정을 도와드릴 수 있습니다. (`.env` 파일은 `.gitignore`에 등록되어 있어 GitHub에 절대 업로드되지 않습니다.)
-- [ ] **5-2. GitHub Actions Secrets 등록 (매일 00:30 자동 크롤링용)**
-  - GitHub 저장소 -> `Settings` -> `Secrets and variables` -> `Actions`
-  - `NOTION_API_KEY`, `NOTION_DAILY_WORD_DB_ID` 등록
+- [x] **5-1. GitHub 원격 저장소(`hope9901/DailyBible`) 생성 및 푸시 완료**
+- [x] **5-2. GitHub Actions Secrets 등록 완료 (매일 00:30 자동 크롤링용)**
+  - `NOTION_API_KEY`, `NOTION_DAILY_WORD_DB_ID`, `NOTION_USERS_DB_ID`, `NOTION_QT_LOGS_DB_ID` 모두 자동 등록 완료
 - [ ] **5-3. Vercel 프로젝트 연결 및 배포 ([Vercel](https://vercel.com/))**
-  - GitHub 저장소를 Import하고 `.env`에 설정한 환경 변수들을 Vercel Project Settings에 동일하게 등록
+  - GitHub 저장소(`hope9901/DailyBible`)를 Import하고 아래 환경 변수를 등록 후 Deploy 클릭
