@@ -394,13 +394,19 @@ async function fetchUserFromNotion(userId: string): Promise<UserProfile | null> 
       const getText = (prop: any) =>
         prop?.rich_text?.map((t: any) => t.plain_text).join("") || "";
       const meta = parseUserMetadataFromEmailField(getText(props.Email));
+      const directPassword = getText(props.Password) || meta.password;
+      const rawPref =
+        getText(props.PreferredTranslation) || meta.preferredTranslation;
+      const preferredTranslation: BibleTranslation =
+        rawPref === "klb" || rawPref === "우리말성경" ? "klb" : "krv";
+
       return {
         userId,
         provider: (getText(props.Provider) as any) || "local",
         email: meta.email,
         nickname: getText(props.Nickname) || userId,
-        password: meta.password,
-        preferredTranslation: meta.preferredTranslation,
+        password: directPassword,
+        preferredTranslation,
         isOnboarded: Boolean(props.IsOnboarded?.checkbox),
         createdAt: page.created_time,
       };
@@ -458,27 +464,31 @@ export async function registerOrLoginUser(params: {
 }): Promise<{ ok: boolean; error?: string; profile?: UserProfile }> {
   const store = readLocalStore();
   const cleanId = params.userId.trim();
+  const inputPassword = (params.password || "").trim();
 
-  let existing = store.users[cleanId];
-  if (!existing) {
-    const fromNotion = await fetchUserFromNotion(cleanId);
-    if (fromNotion) {
-      existing = fromNotion;
-      store.users[cleanId] = fromNotion;
-      writeLocalStore(store);
-    }
+  if (!cleanId || !inputPassword) {
+    return { ok: false, error: "아이디와 비밀번호를 모두 입력해 주세요." };
+  }
+
+  // 노션 DB가 연결된 경우 노션 DB에서 최신 회원 정보를 우선 조회하여 아이디/비밀번호 검증
+  let existing = await fetchUserFromNotion(cleanId);
+  if (existing) {
+    store.users[cleanId] = existing;
+    writeLocalStore(store);
+  } else {
+    existing = store.users[cleanId] || null;
   }
 
   if (params.mode === "register") {
     if (existing && existing.isOnboarded) {
-      return { ok: false, error: "이미 사용 중인 아이디입니다." };
+      return { ok: false, error: "이미 가입된 아이디입니다." };
     }
     const profile: UserProfile = {
       userId: cleanId,
       provider: params.provider || "local",
       email: "",
       nickname: params.nickname?.trim() || cleanId,
-      password: params.password || "",
+      password: inputPassword,
       preferredTranslation: params.preferredTranslation || "krv",
       isOnboarded: true,
       createdAt: new Date().toISOString(),
@@ -489,15 +499,15 @@ export async function registerOrLoginUser(params: {
     return { ok: true, profile };
   }
 
-  // login
-  if (!existing) {
+  // login: 아이디 존재 여부 및 비밀번호 일치 여부 엄격 검증
+  if (!existing || !existing.isOnboarded) {
     return {
       ok: false,
       error: "존재하지 않는 아이디입니다. 먼저 회원가입을 진행해 주세요.",
     };
   }
-  if (existing.password && existing.password !== (params.password || "")) {
-    return { ok: false, error: "비밀번호가 일치하지 않습니다." };
+  if (!existing.password || existing.password !== inputPassword) {
+    return { ok: false, error: "아이디 또는 비밀번호가 일치하지 않습니다." };
   }
   if (!existing.preferredTranslation) {
     existing.preferredTranslation = "krv";
@@ -513,12 +523,9 @@ export async function updateUserProfileSettings(params: {
   preferredTranslation?: BibleTranslation;
 }): Promise<{ ok: boolean; error?: string; profile?: UserProfile }> {
   const store = readLocalStore();
-  let existing: UserProfile | undefined = store.users[params.userId];
+  let existing: UserProfile | null = await fetchUserFromNotion(params.userId);
   if (!existing) {
-    const fromNotion = await fetchUserFromNotion(params.userId);
-    if (fromNotion) {
-      existing = fromNotion;
-    }
+    existing = store.users[params.userId] || null;
   }
   if (!existing) {
     existing = {
@@ -577,6 +584,11 @@ async function syncUserToNotion(user: UserProfile): Promise<void> {
 
     const properties: any = {
       UserId: { title: [{ text: { content: user.userId } }] },
+      Password: { rich_text: [{ text: { content: user.password || "" } }] },
+      Nickname: { rich_text: [{ text: { content: user.nickname } }] },
+      PreferredTranslation: {
+        rich_text: [{ text: { content: user.preferredTranslation || "krv" } }],
+      },
       Provider: { rich_text: [{ text: { content: user.provider } }] },
       Email: {
         rich_text: [
@@ -587,7 +599,6 @@ async function syncUserToNotion(user: UserProfile): Promise<void> {
           },
         ],
       },
-      Nickname: { rich_text: [{ text: { content: user.nickname } }] },
       IsOnboarded: { checkbox: true },
     };
 

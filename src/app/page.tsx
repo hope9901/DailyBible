@@ -80,10 +80,21 @@ export default function DailyQtHomePage() {
   // 로그인 / 회원가입 입력 폼 상태
   const [authUserId, setAuthUserId] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
   const [authNickname, setAuthNickname] = useState("");
   const [authTranslation, setAuthTranslation] =
     useState<BibleTranslation>("krv");
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const resetAuthForm = (nextTab?: "login" | "register") => {
+    if (nextTab) setAuthTab(nextTab);
+    setAuthUserId("");
+    setAuthPassword("");
+    setAuthPasswordConfirm("");
+    setAuthNickname("");
+    setAuthTranslation("krv");
+    setAuthError(null);
+  };
 
   // 회원설정(비밀번호 및 기본 역본 변경) 모달
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -226,6 +237,11 @@ export default function DailyQtHomePage() {
       return;
     }
 
+    if (authTab === "register" && authPassword !== authPasswordConfirm) {
+      setAuthError("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/user/profile", {
         method: "POST",
@@ -263,7 +279,7 @@ export default function DailyQtHomePage() {
       setTranslation(pref); // 회원가입/로그인한 유저의 기본 역본으로 초기화면 설정
       localStorage.setItem("daily_qt_user", JSON.stringify(loggedInUser));
       setShowAuthModal(false);
-      setAuthPassword("");
+      resetAuthForm("login");
       showToast(
         `${loggedInUser.nickname}님 환영합니다! (${
           pref === "klb" ? "우리말성경" : "개역개정"
@@ -339,6 +355,7 @@ export default function DailyQtHomePage() {
   const handleLogout = () => {
     setUser(null);
     setTranslation("krv"); // 로그아웃 시 기본값 개역개정으로 복귀
+    resetAuthForm("login");
     localStorage.removeItem("daily_qt_user");
     showToast("로그아웃되었습니다.");
   };
@@ -590,8 +607,7 @@ export default function DailyQtHomePage() {
             ) : (
               <button
                 onClick={() => {
-                  setAuthTab("login");
-                  setAuthError(null);
+                  resetAuthForm("login");
                   setShowAuthModal(true);
                 }}
                 className="rounded-xl bg-slate-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
@@ -996,10 +1012,7 @@ export default function DailyQtHomePage() {
             <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
               <button
                 type="button"
-                onClick={() => {
-                  setAuthTab("login");
-                  setAuthError(null);
-                }}
+                onClick={() => resetAuthForm("login")}
                 className={`rounded-lg py-2 transition-all ${
                   authTab === "login"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -1010,11 +1023,7 @@ export default function DailyQtHomePage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setAuthTab("register");
-                  setAuthTranslation("krv"); // 기본값: 개역개정
-                  setAuthError(null);
-                }}
+                onClick={() => resetAuthForm("register")}
                 className={`rounded-lg py-2 transition-all ${
                   authTab === "register"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -1025,7 +1034,11 @@ export default function DailyQtHomePage() {
               </button>
             </div>
 
-            <form onSubmit={handleLocalAuthSubmit} className="mt-4 space-y-3">
+            <form
+              onSubmit={handleLocalAuthSubmit}
+              autoComplete="off"
+              className="mt-4 space-y-3"
+            >
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
                   아이디
@@ -1033,6 +1046,7 @@ export default function DailyQtHomePage() {
                 <input
                   type="text"
                   required
+                  autoComplete="off"
                   value={authUserId}
                   onChange={(e) => setAuthUserId(e.target.value)}
                   placeholder="아이디 입력"
@@ -1047,6 +1061,7 @@ export default function DailyQtHomePage() {
                 <input
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
                   placeholder="비밀번호 입력"
@@ -1058,11 +1073,27 @@ export default function DailyQtHomePage() {
                 <>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700">
+                      비밀번호 확인
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      autoComplete="new-password"
+                      value={authPasswordConfirm}
+                      onChange={(e) => setAuthPasswordConfirm(e.target.value)}
+                      placeholder="비밀번호 다시 입력"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700">
                       닉네임 (이름)
                     </label>
                     <input
                       type="text"
                       required
+                      autoComplete="off"
                       value={authNickname}
                       onChange={(e) => setAuthNickname(e.target.value)}
                       placeholder="예: 홍길동"
