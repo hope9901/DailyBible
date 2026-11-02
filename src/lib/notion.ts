@@ -333,6 +333,84 @@ export async function upsertUserQtLog(params: {
 /**
  * 3. 사용자 프로필(닉네임, 비밀번호, 선호 역본) 조회 및 저장
  */
+function parseUserMetadataFromEmailField(raw: string): {
+  email: string;
+  preferredTranslation: BibleTranslation;
+  password: string;
+} {
+  if (raw.startsWith("META:")) {
+    try {
+      const parsed = JSON.parse(raw.slice(5));
+      return {
+        email: parsed.email || "",
+        preferredTranslation:
+          parsed.preferredTranslation === "klb" ? "klb" : "krv",
+        password: parsed.password || "",
+      };
+    } catch {
+      // ignore
+    }
+  }
+  if (raw.startsWith("역본:")) {
+    const pref = raw.replace("역본:", "").trim();
+    return {
+      email: "",
+      preferredTranslation: pref === "klb" ? "klb" : "krv",
+      password: "",
+    };
+  }
+  return {
+    email: raw,
+    preferredTranslation: "krv",
+    password: "",
+  };
+}
+
+function encodeUserMetadataToEmailField(user: UserProfile): string {
+  return `META:${JSON.stringify({
+    email: user.email || "",
+    preferredTranslation: user.preferredTranslation || "krv",
+    password: user.password || "",
+  })}`;
+}
+
+async function fetchUserFromNotion(userId: string): Promise<UserProfile | null> {
+  if (!isNotionConfigured() || !process.env.NOTION_USERS_DB_ID) return null;
+  try {
+    const notion = getNotionClient();
+    const dbId = process.env.NOTION_USERS_DB_ID;
+    const existing = await notion.databases.query({
+      database_id: dbId,
+      filter: {
+        property: "UserId",
+        title: { equals: userId },
+      },
+      page_size: 1,
+    });
+
+    if (existing.results.length > 0) {
+      const page: any = existing.results[0];
+      const props = page.properties;
+      const getText = (prop: any) =>
+        prop?.rich_text?.map((t: any) => t.plain_text).join("") || "";
+      const meta = parseUserMetadataFromEmailField(getText(props.Email));
+      return {
+        userId,
+        provider: (getText(props.Provider) as any) || "local",
+        email: meta.email,
+        nickname: getText(props.Nickname) || userId,
+        password: meta.password,
+        preferredTranslation: meta.preferredTranslation,
+        isOnboarded: Boolean(props.IsOnboarded?.checkbox),
+        createdAt: page.created_time,
+      };
+    }
+  } catch (err) {
+    console.warn("[Notion] fetchUserFromNotion error:", err);
+  }
+  return null;
+}
+
 export async function getOrCreateUserProfile(params: {
   userId: string;
   provider: "kakao" | "naver" | "google" | "local" | "demo";
@@ -348,40 +426,11 @@ export async function getOrCreateUserProfile(params: {
     return u;
   }
 
-  if (isNotionConfigured() && process.env.NOTION_USERS_DB_ID) {
-    try {
-      const notion = getNotionClient();
-      const dbId = process.env.NOTION_USERS_DB_ID;
-      const existing = await notion.databases.query({
-        database_id: dbId,
-        filter: {
-          property: "UserId",
-          title: { equals: params.userId },
-        },
-        page_size: 1,
-      });
-
-      if (existing.results.length > 0) {
-        const page: any = existing.results[0];
-        const props = page.properties;
-        const getText = (prop: any) =>
-          prop?.rich_text?.map((t: any) => t.plain_text).join("") || "";
-        const profile: UserProfile = {
-          userId: params.userId,
-          provider: (getText(props.Provider) as any) || params.provider,
-          email: getText(props.Email) || params.email,
-          nickname: getText(props.Nickname) || params.defaultName,
-          preferredTranslation: "krv",
-          isOnboarded: Boolean(props.IsOnboarded?.checkbox),
-          createdAt: page.created_time,
-        };
-        store.users[params.userId] = profile;
-        writeLocalStore(store);
-        return profile;
-      }
-    } catch (err) {
-      console.warn("[Notion] getOrCreateUserProfile fallback:", err);
-    }
+  const notionUser = await fetchUserFromNotion(params.userId);
+  if (notionUser) {
+    store.users[params.userId] = notionUser;
+    writeLocalStore(store);
+    return notionUser;
   }
 
   const newProfile: UserProfile = {
@@ -410,8 +459,18 @@ export async function registerOrLoginUser(params: {
   const store = readLocalStore();
   const cleanId = params.userId.trim();
 
+  let existing = store.users[cleanId];
+  if (!existing) {
+    const fromNotion = await fetchUserFromNotion(cleanId);
+    if (fromNotion) {
+      existing = fromNotion;
+      store.users[cleanId] = fromNotion;
+      writeLocalStore(store);
+    }
+  }
+
   if (params.mode === "register") {
-    if (store.users[cleanId] && store.users[cleanId].isOnboarded) {
+    if (existing && existing.isOnboarded) {
       return { ok: false, error: "이미 사용 중인 아이디입니다." };
     }
     const profile: UserProfile = {
@@ -431,9 +490,11 @@ export async function registerOrLoginUser(params: {
   }
 
   // login
-  const existing = store.users[cleanId];
   if (!existing) {
-    return { ok: false, error: "존재하지 않는 아이디입니다. 먼저 회원가입을 진행해 주세요." };
+    return {
+      ok: false,
+      error: "존재하지 않는 아이디입니다. 먼저 회원가입을 진행해 주세요.",
+    };
   }
   if (existing.password && existing.password !== (params.password || "")) {
     return { ok: false, error: "비밀번호가 일치하지 않습니다." };
@@ -452,15 +513,24 @@ export async function updateUserProfileSettings(params: {
   preferredTranslation?: BibleTranslation;
 }): Promise<{ ok: boolean; error?: string; profile?: UserProfile }> {
   const store = readLocalStore();
-  const existing: UserProfile = store.users[params.userId] || {
-    userId: params.userId,
-    provider: "local",
-    email: "",
-    nickname: params.nickname || "성도",
-    preferredTranslation: params.preferredTranslation || "krv",
-    isOnboarded: true,
-    createdAt: new Date().toISOString(),
-  };
+  let existing: UserProfile | undefined = store.users[params.userId];
+  if (!existing) {
+    const fromNotion = await fetchUserFromNotion(params.userId);
+    if (fromNotion) {
+      existing = fromNotion;
+    }
+  }
+  if (!existing) {
+    existing = {
+      userId: params.userId,
+      provider: "local",
+      email: "",
+      nickname: params.nickname || "성도",
+      preferredTranslation: params.preferredTranslation || "krv",
+      isOnboarded: true,
+      createdAt: new Date().toISOString(),
+    };
+  }
 
   if (params.newPassword && params.newPassword.trim()) {
     if (
@@ -512,7 +582,7 @@ async function syncUserToNotion(user: UserProfile): Promise<void> {
         rich_text: [
           {
             text: {
-              content: user.email || `역본:${user.preferredTranslation}`,
+              content: encodeUserMetadataToEmailField(user),
             },
           },
         ],
