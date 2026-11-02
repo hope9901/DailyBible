@@ -554,51 +554,54 @@ export default function DailyQtHomePage() {
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* 토스트 알림 */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3.5 text-sm font-medium text-white shadow-xl">
-          <Sparkles className="h-4 w-4 text-amber-400" />
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 flex items-center justify-center sm:justify-start gap-2 rounded-2xl bg-slate-900 px-4 py-3.5 text-xs sm:text-sm font-medium text-white shadow-xl break-keep">
+          <Sparkles className="h-4 w-4 shrink-0 text-amber-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* 심플 메인 헤더 */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-              <BookOpen className="h-5 w-5" />
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3.5 sm:px-4 py-3">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap">
               생명의 삶 QT
             </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* 우측 상단 QT 현황 캘린더 팝업 버튼 */}
             <button
               onClick={() => setShowCalendarModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs sm:text-sm font-semibold text-amber-900 hover:bg-amber-100 transition-colors"
+              className="inline-flex items-center gap-1 sm:gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-amber-900 hover:bg-amber-100 transition-colors whitespace-nowrap"
             >
-              <CalendarIcon className="h-4 w-4 text-amber-600" />
-              <span>QT 캘린더</span>
-              <span className="ml-0.5 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+              <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-amber-600" />
+              <span>캘린더</span>
+              <span className="rounded-full bg-amber-500 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-white">
                 {completedCountThisMonth}일
               </span>
             </button>
 
             {user ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   onClick={handleOpenSettings}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                  className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
                   title="회원설정 (비밀번호 및 기본 성경 역본 변경)"
                 >
-                  <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>{user.nickname}님</span>
-                  <Settings className="ml-0.5 h-3.5 w-3.5 text-slate-500" />
+                  <UserCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <span className="max-w-[72px] sm:max-w-[120px] truncate">
+                    {user.nickname}
+                  </span>
+                  <span className="hidden sm:inline">님</span>
+                  <Settings className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  className="rounded-xl border border-slate-200 p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 shrink-0"
                   title="로그아웃"
                 >
                   <LogOut className="h-4 w-4" />
@@ -610,9 +613,9 @@ export default function DailyQtHomePage() {
                   resetAuthForm("login");
                   setShowAuthModal(true);
                 }}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                className="rounded-xl bg-slate-900 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-slate-800 whitespace-nowrap"
               >
-                로그인 / 회원가입
+                로그인
               </button>
             )}
           </div>
@@ -620,32 +623,32 @@ export default function DailyQtHomePage() {
       </header>
 
       {/* 본문 1단 레이아웃: 1) 성경 말씀 카드 -> 2) 말씀 밑에 위치한 오늘 QT 완료 체크 카드 */}
-      <main className="mx-auto mt-6 max-w-4xl space-y-5 px-4">
+      <main className="mx-auto mt-4 sm:mt-6 max-w-4xl space-y-4 sm:space-y-5 px-3.5 sm:px-4 break-keep">
         {/* 1. 생명의 삶 본문 말씀 카드 (개역개정 / 우리말성경 토글 지원) */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
           {/* 상단 날짜 및 역본 토글(개역개정 / 우리말성경) / 글자 크기 조절 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-100 pb-3.5 sm:pb-4">
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 whitespace-nowrap">
                 {selectedDate || "오늘"} 말씀
               </span>
               {!isTodayActiveQt && qtStatus?.activeQtDate && (
                 <button
                   onClick={() => handleSelectDate(qtStatus.activeQtDate)}
-                  className="text-xs font-semibold text-amber-700 underline hover:text-amber-800"
+                  className="text-xs font-semibold text-amber-700 underline hover:text-amber-800 whitespace-nowrap"
                 >
                   오늘 말씀으로 돌아가기
                 </button>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2">
               {/* 개역개정 / 우리말성경 토글 버튼 */}
-              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold shrink-0">
                 <button
                   type="button"
                   onClick={() => setTranslation("krv")}
-                  className={`rounded-lg px-3 py-1.5 transition-all ${
+                  className={`rounded-lg px-2.5 sm:px-3 py-1.5 transition-all whitespace-nowrap ${
                     translation === "krv"
                       ? "bg-amber-500 text-white shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
@@ -656,7 +659,7 @@ export default function DailyQtHomePage() {
                 <button
                   type="button"
                   onClick={() => setTranslation("klb")}
-                  className={`rounded-lg px-3 py-1.5 transition-all ${
+                  className={`rounded-lg px-2.5 sm:px-3 py-1.5 transition-all whitespace-nowrap ${
                     translation === "klb"
                       ? "bg-amber-500 text-white shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
@@ -666,50 +669,52 @@ export default function DailyQtHomePage() {
                 </button>
               </div>
 
-              {/* 글자 크기 조절 */}
-              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 text-xs">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* 글자 크기 조절 */}
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 text-xs">
+                  <button
+                    onClick={() => setFontSize("base")}
+                    className={`rounded px-2 py-1 whitespace-nowrap ${
+                      fontSize === "base"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    가
+                  </button>
+                  <button
+                    onClick={() => setFontSize("lg")}
+                    className={`rounded px-2 py-1 font-medium whitespace-nowrap ${
+                      fontSize === "lg"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    가+
+                  </button>
+                  <button
+                    onClick={() => setFontSize("xl")}
+                    className={`rounded px-2 py-1 font-bold whitespace-nowrap ${
+                      fontSize === "xl"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    가++
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setFontSize("base")}
-                  className={`rounded px-2 py-1 ${
-                    fontSize === "base"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600"
-                  }`}
+                  onClick={handleManualCrawl}
+                  disabled={crawling}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                  title="개역개정·우리말성경 말씀 새로고침"
                 >
-                  가
-                </button>
-                <button
-                  onClick={() => setFontSize("lg")}
-                  className={`rounded px-2 py-1 font-medium ${
-                    fontSize === "lg"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600"
-                  }`}
-                >
-                  가+
-                </button>
-                <button
-                  onClick={() => setFontSize("xl")}
-                  className={`rounded px-2 py-1 font-bold ${
-                    fontSize === "xl"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600"
-                  }`}
-                >
-                  가++
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${crawling ? "animate-spin" : ""}`}
+                  />
                 </button>
               </div>
-
-              <button
-                onClick={handleManualCrawl}
-                disabled={crawling}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 p-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50"
-                title="개역개정·우리말성경 말씀 새로고침"
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${crawling ? "animate-spin" : ""}`}
-                />
-              </button>
             </div>
           </div>
 
@@ -718,39 +723,41 @@ export default function DailyQtHomePage() {
               말씀을 불러오는 중입니다...
             </div>
           ) : dailyWord ? (
-            <div className="mt-5 space-y-6">
+            <div className="mt-4 sm:mt-5 space-y-5 sm:space-y-6">
               {/* 말씀 제목 및 본문 장절 */}
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-amber-700">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-amber-700 break-keep">
                     {dailyWord.scripture}
                   </p>
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
                     {translation === "klb" ? "우리말성경" : "개역개정"}
                   </span>
                 </div>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">
+                <h2 className="mt-1.5 text-xl sm:text-2xl font-bold leading-snug text-slate-900 break-keep">
                   {dailyWord.title}
                 </h2>
               </div>
 
               {/* 성경 본문 절별 리스트 */}
-              <div className="space-y-6">
+              <div className="space-y-5 sm:space-y-6">
                 {activeSections.map((section, idx) => (
-                  <div key={idx} className="space-y-3">
-                    <h3 className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">
+                  <div key={idx} className="space-y-2.5 sm:space-y-3">
+                    <h3 className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold leading-normal text-slate-700 break-keep">
                       {section.subheading}
                     </h3>
                     <div className={`space-y-2.5 ${fontSizeClass}`}>
                       {section.verses.map((v) => (
                         <div
                           key={v.verse}
-                          className="flex items-baseline gap-2.5 rounded-lg px-2 py-1 hover:bg-amber-50/40"
+                          className="flex items-baseline gap-2 sm:gap-2.5 rounded-lg px-1.5 sm:px-2 py-1 hover:bg-amber-50/40"
                         >
-                          <span className="w-6 shrink-0 select-none text-right text-xs font-bold text-amber-700">
+                          <span className="w-5 sm:w-6 shrink-0 select-none text-right text-xs font-bold text-amber-700">
                             {v.verse}
                           </span>
-                          <p className="text-slate-800">{v.text}</p>
+                          <p className="flex-1 text-slate-800 break-keep leading-relaxed">
+                            {v.text}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -761,24 +768,24 @@ export default function DailyQtHomePage() {
               {/* 묵상 도우미 */}
               {dailyWord.meditationGuide &&
                 dailyWord.meditationGuide.length > 0 && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                      <HelpCircle className="h-4 w-4 text-slate-500" />
+                      <HelpCircle className="h-4 w-4 shrink-0 text-slate-500" />
                       <span>묵상 도우미</span>
                     </div>
-                    <ul className="mt-2.5 space-y-1.5 text-xs leading-relaxed text-slate-600">
+                    <ul className="mt-2.5 space-y-1.5 text-xs leading-relaxed text-slate-600 break-keep">
                       {dailyWord.meditationGuide.map((item, i) => (
                         <li key={i} className="flex gap-2">
-                          <span className="text-amber-600">•</span>
-                          <span>{item}</span>
+                          <span className="shrink-0 text-amber-600">•</span>
+                          <span className="flex-1 break-keep">{item}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-400">
-                <span>
+              <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                <span className="break-keep">
                   출처: 두란노 생명의 삶 (
                   {translation === "klb" ? "우리말성경" : "개역개정"})
                 </span>
@@ -786,7 +793,7 @@ export default function DailyQtHomePage() {
                   href={dailyWord.sourceUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="underline hover:text-slate-600"
+                  className="shrink-0 underline hover:text-slate-600 whitespace-nowrap"
                 >
                   원문 보기 ↗
                 </a>
@@ -797,19 +804,19 @@ export default function DailyQtHomePage() {
 
         {/* 2. 말씀 밑 QT 완료 체크 영역: 오늘 날짜일 때만 완료 체크 버튼 노출, 과거 날짜일 때는 버튼 숨김 */}
         {isTodayActiveQt ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm break-keep">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
                 <button
                   onClick={() => handleToggleQtCheck(!isCompleted)}
                   disabled={saving}
-                  className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all shadow-sm ${
+                  className={`flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all shadow-sm whitespace-nowrap ${
                     isCompleted
                       ? "bg-emerald-600 text-white hover:bg-emerald-700"
                       : "bg-amber-500 text-white hover:bg-amber-600"
                   }`}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
                     {isCompleted ? "오늘 QT 완료됨" : "오늘 QT 완료 체크"}
                   </span>
@@ -819,7 +826,7 @@ export default function DailyQtHomePage() {
                   <p className="text-sm font-bold text-slate-900">
                     {selectedDate || "오늘"} QT 점검
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 break-keep">
                     {isCompleted
                       ? "오늘 말씀을 읽고 캘린더에 기록했습니다."
                       : "말씀을 다 읽으셨다면 완료 체크를 눌러주세요."}
@@ -830,9 +837,9 @@ export default function DailyQtHomePage() {
               <button
                 type="button"
                 onClick={() => setShowReflectionEditor((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
               >
-                <PenLine className="h-3.5 w-3.5 text-amber-600" />
+                <PenLine className="h-3.5 w-3.5 shrink-0 text-amber-600" />
                 <span>
                   {showReflectionEditor
                     ? "메모 닫기"
