@@ -85,6 +85,7 @@ export default function DailyQtHomePage() {
   const [authTranslation, setAuthTranslation] =
     useState<BibleTranslation>("krv");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authPasswordLengthError, setAuthPasswordLengthError] = useState(false);
 
   const resetAuthForm = (nextTab?: "login" | "register") => {
     if (nextTab) setAuthTab(nextTab);
@@ -94,6 +95,7 @@ export default function DailyQtHomePage() {
     setAuthNickname("");
     setAuthTranslation("krv");
     setAuthError(null);
+    setAuthPasswordLengthError(false);
   };
 
   // 회원설정(비밀번호 및 기본 역본 변경) 모달
@@ -101,9 +103,12 @@ export default function DailyQtHomePage() {
   const [settingsNickname, setSettingsNickname] = useState("");
   const [settingsTranslation, setSettingsTranslation] =
     useState<BibleTranslation>("krv");
+  const [settingsCurrentPassword, setSettingsCurrentPassword] = useState("");
   const [settingsNewPassword, setSettingsNewPassword] = useState("");
   const [settingsConfirmPassword, setSettingsConfirmPassword] = useState("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsPasswordLengthError, setSettingsPasswordLengthError] =
+    useState(false);
 
   // 현재 화면에서 보고 있는 성경 역본 토글 상태 (기본값: 개역개정 "krv")
   const [translation, setTranslation] = useState<BibleTranslation>("krv");
@@ -177,6 +182,12 @@ export default function DailyQtHomePage() {
         const res = await fetch(`/api/qt?${params.toString()}`);
         const data = await res.json();
 
+        // 로컬 스토리지에 남아있으나 서버 HttpOnly 세션 쿠키가 없거나 만료된 경우 정리
+        if (currentUser?.userId && data.sessionAuthenticated === false) {
+          setUser(null);
+          localStorage.removeItem("daily_qt_user");
+        }
+
         if (data.qtStatus) setQtStatus(data.qtStatus);
         if (data.selectedDate) setSelectedDate(data.selectedDate);
         if (data.selectedMonth) setCurrentMonth(data.selectedMonth);
@@ -237,9 +248,18 @@ export default function DailyQtHomePage() {
       return;
     }
 
-    if (authTab === "register" && authPassword !== authPasswordConfirm) {
-      setAuthError("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
-      return;
+    if (authTab === "register") {
+      if (authPassword.trim().length < 4) {
+        setAuthPasswordLengthError(true);
+        setAuthError("비밀번호는 최소 4자리 이상 작성해 주세요.");
+        return;
+      }
+      setAuthPasswordLengthError(false);
+
+      if (authPassword !== authPasswordConfirm) {
+        setAuthError("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+        return;
+      }
     }
 
     try {
@@ -261,6 +281,9 @@ export default function DailyQtHomePage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        if (authTab === "register" && String(data.error || "").includes("4자리")) {
+          setAuthPasswordLengthError(true);
+        }
         setAuthError(data.error || "로그인/회원가입에 실패했습니다.");
         return;
       }
@@ -296,9 +319,11 @@ export default function DailyQtHomePage() {
     if (!user) return;
     setSettingsNickname(user.nickname);
     setSettingsTranslation(user.preferredTranslation || "krv");
+    setSettingsCurrentPassword("");
     setSettingsNewPassword("");
     setSettingsConfirmPassword("");
     setSettingsError(null);
+    setSettingsPasswordLengthError(false);
     setShowSettingsModal(true);
   };
 
@@ -308,12 +333,27 @@ export default function DailyQtHomePage() {
     if (!user) return;
     setSettingsError(null);
 
-    if (
-      settingsNewPassword.trim() &&
-      settingsNewPassword !== settingsConfirmPassword
-    ) {
-      setSettingsError("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
-      return;
+    const wantsPasswordChange =
+      settingsNewPassword.trim().length > 0 ||
+      settingsConfirmPassword.trim().length > 0;
+
+    if (wantsPasswordChange) {
+      if (settingsNewPassword.trim().length < 4) {
+        setSettingsPasswordLengthError(true);
+        setSettingsError("새 비밀번호는 최소 4자리 이상 작성해 주세요.");
+        return;
+      }
+      setSettingsPasswordLengthError(false);
+
+      if (!settingsCurrentPassword.trim()) {
+        setSettingsError("비밀번호를 변경하려면 현재 비밀번호를 입력해 주세요.");
+        return;
+      }
+
+      if (settingsNewPassword !== settingsConfirmPassword) {
+        setSettingsError("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+        return;
+      }
     }
 
     try {
@@ -323,12 +363,20 @@ export default function DailyQtHomePage() {
         body: JSON.stringify({
           userId: user.userId,
           nickname: settingsNickname.trim() || user.nickname,
-          newPassword: settingsNewPassword.trim() || undefined,
+          currentPassword: wantsPasswordChange
+            ? settingsCurrentPassword.trim()
+            : undefined,
+          newPassword: wantsPasswordChange
+            ? settingsNewPassword.trim()
+            : undefined,
           preferredTranslation: settingsTranslation,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        if (String(data.error || "").includes("4자리")) {
+          setSettingsPasswordLengthError(true);
+        }
         setSettingsError(data.error || "설정 저장에 실패했습니다.");
         return;
       }
@@ -352,7 +400,16 @@ export default function DailyQtHomePage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+    } catch {
+      // ignore network error on logout
+    }
     setUser(null);
     setTranslation("krv"); // 로그아웃 시 기본값 개역개정으로 복귀
     resetAuthForm("login");
@@ -389,6 +446,14 @@ export default function DailyQtHomePage() {
         }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        setUser(null);
+        localStorage.removeItem("daily_qt_user");
+        resetAuthForm("login");
+        setShowAuthModal(true);
+        showToast(data.error || "다시 로그인해 주세요.");
+        return;
+      }
       if (data.success) {
         setIsCompleted(nextChecked);
         setMonthLogs((prev) => ({
@@ -430,6 +495,14 @@ export default function DailyQtHomePage() {
         }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        setUser(null);
+        localStorage.removeItem("daily_qt_user");
+        resetAuthForm("login");
+        setShowAuthModal(true);
+        showToast(data.error || "다시 로그인해 주세요.");
+        return;
+      }
       if (data.success) {
         setIsCompleted(true);
         setMonthLogs((prev) => ({
@@ -1070,10 +1143,31 @@ export default function DailyQtHomePage() {
                   required
                   autoComplete="new-password"
                   value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setAuthPassword(nextVal);
+                    if (nextVal.trim().length >= 4) {
+                      setAuthPasswordLengthError(false);
+                    }
+                  }}
                   placeholder="비밀번호 입력"
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                  className={`mt-1 w-full rounded-xl border px-3.5 py-2 text-sm focus:outline-none ${
+                    authTab === "register" && authPasswordLengthError
+                      ? "border-rose-500 bg-rose-50/30 focus:border-rose-600"
+                      : "border-slate-300 focus:border-amber-500"
+                  }`}
                 />
+                {authTab === "register" && (
+                  <p
+                    className={`mt-1.5 text-[11px] transition-colors ${
+                      authPasswordLengthError
+                        ? "font-semibold text-rose-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    * 비밀번호는 최소 4자리 이상 작성해 주세요.
+                  </p>
+                )}
               </div>
 
               {authTab === "register" && (
@@ -1230,19 +1324,57 @@ export default function DailyQtHomePage() {
 
               {/* 비밀번호 변경 */}
               <div className="border-t border-slate-100 pt-3.5 space-y-3">
-                <p className="text-xs font-bold text-slate-800">
-                  비밀번호 변경 (변경 시에만 입력)
-                </p>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    비밀번호 변경 (변경 시에만 입력)
+                  </p>
+                  <p
+                    className={`mt-1 text-[11px] transition-colors ${
+                      settingsPasswordLengthError
+                        ? "font-semibold text-rose-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    * 비밀번호 변경 시 최소 4자리 이상 작성해 주세요.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600">
+                    현재 비밀번호
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={settingsCurrentPassword}
+                    onChange={(e) => setSettingsCurrentPassword(e.target.value)}
+                    placeholder="현재 비밀번호 입력"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600">
                     새 비밀번호
                   </label>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={settingsNewPassword}
-                    onChange={(e) => setSettingsNewPassword(e.target.value)}
-                    placeholder="새 비밀번호 입력"
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    onChange={(e) => {
+                      const nextVal = e.target.value;
+                      setSettingsNewPassword(nextVal);
+                      if (
+                        nextVal.trim().length === 0 ||
+                        nextVal.trim().length >= 4
+                      ) {
+                        setSettingsPasswordLengthError(false);
+                      }
+                    }}
+                    placeholder="새 비밀번호 입력 (최소 4자리 이상)"
+                    className={`mt-1 w-full rounded-xl border px-3.5 py-2 text-sm focus:outline-none ${
+                      settingsPasswordLengthError
+                        ? "border-rose-500 bg-rose-50/30 focus:border-rose-600"
+                        : "border-slate-300 focus:border-amber-500"
+                    }`}
                   />
                 </div>
                 <div>
@@ -1251,6 +1383,7 @@ export default function DailyQtHomePage() {
                   </label>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={settingsConfirmPassword}
                     onChange={(e) => setSettingsConfirmPassword(e.target.value)}
                     placeholder="새 비밀번호 다시 입력"

@@ -2,6 +2,12 @@ import { Client } from "@notionhq/client";
 import fs from "fs";
 import path from "path";
 import { DailyWordData, BibleTranslation, crawlDurannoQt } from "./crawler";
+import {
+  hashPassword,
+  verifyPassword,
+  sanitizeUserProfile,
+  MIN_PASSWORD_LENGTH,
+} from "./security";
 
 export interface UserProfile {
   userId: string;
@@ -370,7 +376,6 @@ function encodeUserMetadataToEmailField(user: UserProfile): string {
   return `META:${JSON.stringify({
     email: user.email || "",
     preferredTranslation: user.preferredTranslation || "krv",
-    password: user.password || "",
   })}`;
 }
 
@@ -429,14 +434,14 @@ export async function getOrCreateUserProfile(params: {
     if (!u.preferredTranslation) {
       u.preferredTranslation = "krv";
     }
-    return u;
+    return sanitizeUserProfile(u);
   }
 
   const notionUser = await fetchUserFromNotion(params.userId);
   if (notionUser) {
     store.users[params.userId] = notionUser;
     writeLocalStore(store);
-    return notionUser;
+    return sanitizeUserProfile(notionUser);
   }
 
   const newProfile: UserProfile = {
@@ -451,7 +456,7 @@ export async function getOrCreateUserProfile(params: {
 
   store.users[params.userId] = newProfile;
   writeLocalStore(store);
-  return newProfile;
+  return sanitizeUserProfile(newProfile);
 }
 
 export async function registerOrLoginUser(params: {
@@ -480,15 +485,24 @@ export async function registerOrLoginUser(params: {
   }
 
   if (params.mode === "register") {
+    if (inputPassword.length < MIN_PASSWORD_LENGTH) {
+      return {
+        ok: false,
+        error: `비밀번호는 최소 ${MIN_PASSWORD_LENGTH}자리 이상 입력해 주세요.`,
+      };
+    }
+
     if (existing && existing.isOnboarded) {
       return { ok: false, error: "이미 가입된 아이디입니다." };
     }
+
+    const hashedPassword = hashPassword(inputPassword);
     const profile: UserProfile = {
       userId: cleanId,
       provider: params.provider || "local",
       email: "",
       nickname: params.nickname?.trim() || cleanId,
-      password: inputPassword,
+      password: hashedPassword,
       preferredTranslation: params.preferredTranslation || "krv",
       isOnboarded: true,
       createdAt: new Date().toISOString(),
@@ -496,23 +510,34 @@ export async function registerOrLoginUser(params: {
     store.users[cleanId] = profile;
     writeLocalStore(store);
     await syncUserToNotion(profile);
-    return { ok: true, profile };
+    return { ok: true, profile: sanitizeUserProfile(profile) };
   }
 
-  // login: 아이디 존재 여부 및 비밀번호 일치 여부 엄격 검증
+  // login: 아이디 존재 여부 및 비밀번호(scrypt 해시 또는 기존 평문) 일치 여부 엄격 검증
   if (!existing || !existing.isOnboarded) {
     return {
       ok: false,
       error: "존재하지 않는 아이디입니다. 먼저 회원가입을 진행해 주세요.",
     };
   }
-  if (!existing.password || existing.password !== inputPassword) {
+
+  const verification = verifyPassword(inputPassword, existing.password);
+  if (!verification.valid) {
     return { ok: false, error: "아이디 또는 비밀번호가 일치하지 않습니다." };
   }
+
+  // 기존 평문 비밀번호 계정인 경우 로그인 시 자동으로 scrypt 단방향 해시로 업그레이드
+  if (verification.needsRehash) {
+    existing.password = hashPassword(inputPassword);
+    store.users[cleanId] = existing;
+    writeLocalStore(store);
+    await syncUserToNotion(existing);
+  }
+
   if (!existing.preferredTranslation) {
     existing.preferredTranslation = "krv";
   }
-  return { ok: true, profile: existing };
+  return { ok: true, profile: sanitizeUserProfile(existing) };
 }
 
 export async function updateUserProfileSettings(params: {
@@ -528,27 +553,33 @@ export async function updateUserProfileSettings(params: {
     existing = store.users[params.userId] || null;
   }
   if (!existing) {
-    existing = {
-      userId: params.userId,
-      provider: "local",
-      email: "",
-      nickname: params.nickname || "성도",
-      preferredTranslation: params.preferredTranslation || "krv",
-      isOnboarded: true,
-      createdAt: new Date().toISOString(),
-    };
+    return { ok: false, error: "회원 정보를 찾을 수 없습니다." };
   }
 
-  if (params.newPassword && params.newPassword.trim()) {
-    if (
-      existing.password &&
-      params.currentPassword !== undefined &&
-      params.currentPassword !== "" &&
-      existing.password !== params.currentPassword
-    ) {
-      return { ok: false, error: "현재 비밀번호가 일치하지 않습니다." };
+  if (params.newPassword !== undefined && params.newPassword.trim() !== "") {
+    const trimmedNewPw = params.newPassword.trim();
+    if (trimmedNewPw.length < MIN_PASSWORD_LENGTH) {
+      return {
+        ok: false,
+        error: `새 비밀번호는 최소 ${MIN_PASSWORD_LENGTH}자리 이상 입력해 주세요.`,
+      };
     }
-    existing.password = params.newPassword.trim();
+
+    if (existing.password) {
+      const currentPw = (params.currentPassword || "").trim();
+      if (!currentPw) {
+        return {
+          ok: false,
+          error: "비밀번호를 변경하려면 현재 비밀번호를 입력해 주세요.",
+        };
+      }
+      const pwCheck = verifyPassword(currentPw, existing.password);
+      if (!pwCheck.valid) {
+        return { ok: false, error: "현재 비밀번호가 일치하지 않습니다." };
+      }
+    }
+
+    existing.password = hashPassword(trimmedNewPw);
   }
 
   if (params.nickname && params.nickname.trim()) {
@@ -565,7 +596,7 @@ export async function updateUserProfileSettings(params: {
 
   await syncUserToNotion(existing);
 
-  return { ok: true, profile: existing };
+  return { ok: true, profile: sanitizeUserProfile(existing) };
 }
 
 async function syncUserToNotion(user: UserProfile): Promise<void> {

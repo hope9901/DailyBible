@@ -7,6 +7,7 @@ import {
   getOrCreateUserProfile,
   isNotionConfigured,
 } from "@/lib/notion";
+import { getAuthenticatedUserId, sanitizeUserProfile } from "@/lib/security";
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,18 +18,29 @@ export async function GET(req: NextRequest) {
     const targetDate = searchParams.get("date") || qtStatus.activeQtDate;
     const targetMonth =
       searchParams.get("month") || targetDate.slice(0, 7); // YYYY-MM
-    const userId = searchParams.get("userId") || "guest_default";
-    const provider = (searchParams.get("provider") || "kakao") as
+
+    const requestedUserId = searchParams.get("userId") || "guest_default";
+    const sessionUserId = getAuthenticatedUserId(req);
+
+    // 서명된 세션 쿠키와 일치하는 경우에만 해당 회원의 QT 기록 조회 허용
+    const isAuthenticatedUser =
+      requestedUserId !== "guest_default" && sessionUserId === requestedUserId;
+    const effectiveUserId = isAuthenticatedUser
+      ? requestedUserId
+      : "guest_default";
+
+    const provider = (searchParams.get("provider") || "local") as
       | "kakao"
       | "naver"
       | "google"
+      | "local"
       | "demo";
 
     const [dailyWord, monthLogs, userProfile] = await Promise.all([
       getDailyWord(targetDate),
-      getUserQtLogsByMonth(userId, targetMonth),
+      getUserQtLogsByMonth(effectiveUserId, targetMonth),
       getOrCreateUserProfile({
-        userId,
+        userId: effectiveUserId,
         provider,
         email: "",
         defaultName: "묵상하는 성도",
@@ -42,20 +54,16 @@ export async function GET(req: NextRequest) {
       dailyWord,
       monthLogs,
       currentDateLog: monthLogs[targetDate] || {
-        logId: `${userId}_${targetDate}`,
-        userId,
+        logId: `${effectiveUserId}_${targetDate}`,
+        userId: effectiveUserId,
         date: targetDate,
         isCompleted: false,
         reflection: "",
         updatedAt: "",
       },
-      userProfile,
+      userProfile: sanitizeUserProfile(userProfile),
+      sessionAuthenticated: isAuthenticatedUser,
       storageMode: isNotionConfigured() ? "notion" : "local-fallback",
-      oauthConfigured: {
-        kakao: Boolean(process.env.KAKAO_CLIENT_ID),
-        naver: Boolean(process.env.NAVER_CLIENT_ID),
-        google: Boolean(process.env.GOOGLE_CLIENT_ID),
-      },
     });
   } catch (error: any) {
     console.error("[API /api/qt GET] Error:", error);
@@ -78,6 +86,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const sessionUserId = getAuthenticatedUserId(req);
+    if (!sessionUserId || sessionUserId !== String(userId).trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "로그인 세션이 만료되었거나 권한이 없습니다. 다시 로그인해 주세요.",
+        },
+        { status: 401 }
+      );
+    }
+
     const qtStatus = getQtDayStatus(new Date());
     if (date !== qtStatus.activeQtDate) {
       return NextResponse.json(
@@ -87,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const saved = await upsertUserQtLog({
-      userId,
+      userId: sessionUserId,
       date,
       isCompleted: Boolean(isCompleted),
       reflection: typeof reflection === "string" ? reflection : undefined,
